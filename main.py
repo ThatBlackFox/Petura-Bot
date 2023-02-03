@@ -420,6 +420,7 @@ class Editpage2(ui.Modal, title = "Editing | Characteristics(a)"):
     def __init__(self, msg:discord.Message=None, char:dict=None,flow:bool=False,doer=None):
         super().__init__()
         self.flow = flow
+        self.child = True
         self.msg = msg
         self.char = char
         self.doer = doer
@@ -452,23 +453,29 @@ class Editpage2(ui.Modal, title = "Editing | Characteristics(a)"):
         self.char['s'] = str(self.answer3)
         self.char['t'] = str(self.answer4)
         self.char['ag'] = str(self.answer5)
-        if self.flow:
-
-            await interaction.response.send_message(embed=embed, view=EditnextButton2a(char=self.char,doer=self.doer))
-            await self.msg.edit(view=None)
+        if self.flow or self.child:
+            await interaction.response.send_message(embed=embed, view=EditnextButton2a(char=self.char,doer=self.doer,child=self.child,flow=self.flow))
+            if self.flow:
+                await self.msg.edit(view=None)
         else:
             embed.set_footer(text='Edit Complete!')
             await interaction.response.send_message(embed=embed)
 
 class EditnextButton2a(ui.View):
-    def __init__(self, char,doer):
+    def __init__(self, char,doer,child,flow):
         super().__init__()
         self.char = char
         self.doer = doer
+        self.child = child
+        self.flow = flow
     @discord.ui.button(label='Next', style=discord.ButtonStyle.green, custom_id='EditNextButton2a')
     async def next(self, inter:discord.Interaction, button:ui.Button):
         if inter.user.id == self.doer:
-            await inter.response.send_modal(Editpage2a(inter.message,self.char,flow=True,doer=self.doer))
+            if self.child and not self.flow:
+                await inter.response.send_modal(Editpage2a(inter.message,self.char,flow=False,doer=self.doer))
+                await inter.message.edit(view=None)
+            else:
+                await inter.response.send_modal(Editpage2a(inter.message,self.char,flow=True,doer=self.doer))
 
 class Editpage2a(ui.Modal, title = "Editing | Characteristics(a)"):
     def __init__(self, msg:discord.Message=None, char:dict=None,flow:bool=False,doer=None):
@@ -477,11 +484,11 @@ class Editpage2a(ui.Modal, title = "Editing | Characteristics(a)"):
         self.msg = msg
         self.char = char
         self.doer = doer
-        self.answer1= ui.TextInput(label="● Unnatural Weapon Skill (WS):", style=discord.TextStyle.short,default=self.char['ws'] ,placeholder="Assign a numeric value")
-        self.answer2= ui.TextInput(label="● Unnatural Ballistic Skill (BS):", style=discord.TextStyle.short,default=self.char['bs'] ,placeholder="Assign a numeric value")
-        self.answer3= ui.TextInput(label="● Unnatural Strength (S):", style=discord.TextStyle.short,default=self.char['s'],placeholder="Assign a numeric value")
-        self.answer4= ui.TextInput(label="● Unnatural Toughness (T):", style=discord.TextStyle.short,default=self.char['t'],placeholder="Assign a numeric value")
-        self.answer5= ui.TextInput(label="● Unnatural Agility (AG):", style=discord.TextStyle.short,default=self.char['ag'],placeholder="Assign a numeric value")
+        self.answer1= ui.TextInput(label="● Unnatural Weapon Skill (WS):", style=discord.TextStyle.short,default=self.char['uws'] ,placeholder="Assign a numeric value")
+        self.answer2= ui.TextInput(label="● Unnatural Ballistic Skill (BS):", style=discord.TextStyle.short,default=self.char['ubs'] ,placeholder="Assign a numeric value")
+        self.answer3= ui.TextInput(label="● Unnatural Strength (S):", style=discord.TextStyle.short,default=self.char['us'],placeholder="Assign a numeric value")
+        self.answer4= ui.TextInput(label="● Unnatural Toughness (T):", style=discord.TextStyle.short,default=self.char['ut'],placeholder="Assign a numeric value")
+        self.answer5= ui.TextInput(label="● Unnatural Agility (AG):", style=discord.TextStyle.short,default=self.char['uag'],placeholder="Assign a numeric value")
         self.add_item(self.answer1)
         self.add_item(self.answer2)
         self.add_item(self.answer3)
@@ -525,10 +532,11 @@ class EditnextButton2(ui.View):
             await inter.response.send_modal(Editpage3(inter.message,self.char,flow=True,doer=self.doer))
 
 class Editpage3(ui.Modal, title = "Editing | Characteristics(b)"):
-    def __init__(self, msg:discord.Message=None, char:dict=None,flow:bool=False,doer=None):
+    def __init__(self, msg:discord.Message=None, char:dict=None,flow:bool=True,doer=None):
         super().__init__()
         self.msg = msg
         self.char = char
+        self.child = True
         self.flow = flow
         self.doer = doer
         self.answer6= ui.TextInput(label="● Intelligence (INT):", style=discord.TextStyle.short,default=self.char['int'],placeholder="Assign a numeric value")
@@ -560,22 +568,29 @@ class Editpage3(ui.Modal, title = "Editing | Characteristics(b)"):
         self.char['fel'] = str(self.answer9)
         self.char['ifl'] = str(self.answer10)
         embed.set_footer(text='Character Sheet | page 3')
-        if self.flow:
+        if self.flow or self.child:
             await self.msg.edit(view=None)
-            await interaction.response.send_message(embed=embed, view=EditnextButton3a(self.char,self.doer))
+            if self.flow:
+                await interaction.response.send_message(embed=embed, view=EditnextButton3a(self.char,self.doer,self.child,self.flow))
         else:
             embed.set_footer(text='Edit Complete!')
             await interaction.response.send_message(embed=embed)
 
 class EditnextButton3a(ui.View):
-    def __init__(self, char,doer):
+    def __init__(self, char,doer,child,flow):
         super().__init__()
         self.char = char
         self.doer = doer
+        self.flow = flow
+        self.child = child
     @discord.ui.button(label='Next', style=discord.ButtonStyle.green, custom_id='EditNextButton3a')
     async def next(self, inter:discord.Interaction, button:ui.Button):
         if inter.user.id == self.doer:
-            await inter.response.send_modal(Editpage3a(inter.message, self.char,flow=True,doer=self.doer))
+            if self.child and not self.flow:
+                await inter.response.send_modal(Editpage3a(inter.message,self.char,flow=False,doer=self.doer))
+                await inter.message.edit(view=None)
+            else:
+                await inter.response.send_modal(Editpage3a(inter.message,self.char,flow=True,doer=self.doer))
 
 class Editpage3a(ui.Modal, title = "Editing | Characteristics(b)"):
     def __init__(self, msg:discord.Message=None, char:dict=None,flow:bool=False,doer=None):
@@ -1571,7 +1586,7 @@ class intRollView(ui.View):
                 if chrt=='const':
                     bonus=0
                 else:
-                    bonus=int(int(char[chrt])/10)+char['u'+chrt]
+                    bonus=int(int(char[chrt])/10)+int(char['u'+chrt])
                 if rolled+bonus>char['rolled']:
                     char['rolled']=rolled
                     char['used_chrt']=int_abv[chrt]
