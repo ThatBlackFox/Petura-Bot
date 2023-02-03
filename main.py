@@ -30,10 +30,10 @@ dub_notes = {1: 'Dark Foreboding: A faint breeze blows past the psyker and those
 
 cache = set()
 def on_terminate(t,k):
-    with open('backup.db', 'wb') as f:
+    with open('backup.db', 'w') as f:
         pickle.dump(db,f)
         storage.child('backup.db').put('backup.db')
-    with open('root.db','wb') as f:
+    with open('root.db','w') as f:
         pickle.dump(db,f)
         storage.child('root.db').put('root.db')
     exit()
@@ -1709,7 +1709,7 @@ async def roll(interaction:discord.Interaction, syntax:str):
         if int(acc/10)-int(rolled/10)>0:
             emb.add_field(name='Degree of Sucess:', value=int(acc/10)-int(rolled/10)+unnat_base)
         else:
-            emb.add_field(name='Degree of Sucess:', value=unnat_base)
+            emb.add_field(name='Degree of Sucess:', value=1+unnat_base)
         emb.add_field(name='Rolled:',value=rolled)
         await interaction.response.send_message(embed=emb)
     else:
