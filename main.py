@@ -30,10 +30,10 @@ dub_notes = {1: 'Dark Foreboding: A faint breeze blows past the psyker and those
 
 cache = set()
 def on_terminate(t,k):
-    with open('backup.db', 'w') as f:
+    with open('backup.db', 'wb') as f:
         pickle.dump(db,f)
         storage.child('backup.db').put('backup.db')
-    with open('root.db','w') as f:
+    with open('root.db','wb') as f:
         pickle.dump(db,f)
         storage.child('root.db').put('root.db')
     exit()
@@ -2264,6 +2264,17 @@ else:
         with open('root.db','rb') as f:
             db = pickle.load(f)
     except Exception as e:
-        raise e
+        if isinstance(e,EOFError):
+            with open('root.db', 'wb') as f:
+                db = {'user_db':{},'server_db':{},'int_ids':{}}
+                pickle.dump(db,f)
+            print("Warning: Empty DB file found! data has been reset.")
+        elif isinstance(e,FileNotFoundError):
+            with open('root.db', 'wb') as f:
+                db = {'user_db':{},'server_db':{},'int_ids':{}}
+                pickle.dump(db,f)
+            print("Warning: DB file not found new created!")
+        else:
+            raise e
     
 aclient.run(token)
