@@ -2258,7 +2258,18 @@ if config['isFirebase']:
         storage.child('root.db').download(config['firebaseConfig']['storageBucket'],'root.db')
         storage.child('backup.db').download(config['firebaseConfig']['storageBucket'],'backup.db')
     except Exception as e:
-        raise e
+        if isinstance(e,EOFError):
+            with open('root.db', 'wb') as f:
+                db = {'user_db':{},'server_db':{},'int_ids':{}}
+                pickle.dump(db,f)
+            print("Warning: Empty DB file found! data has been reset.")
+        elif isinstance(e,FileNotFoundError):
+            with open('root.db', 'wb') as f:
+                db = {'user_db':{},'server_db':{},'int_ids':{}}
+                pickle.dump(db,f)
+            print("Warning: DB file not found new created!")
+        else:
+            raise e
 else:
     try:
         with open('root.db','rb') as f:
