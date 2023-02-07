@@ -1,7 +1,6 @@
 sec.py
-backup.db
-root.db
+backup*
+*root*
 config copy.json
 private.py
 Procfile
-backup.py

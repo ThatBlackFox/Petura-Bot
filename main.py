@@ -3,6 +3,7 @@ import ast
 from difflib import SequenceMatcher
 import pickle
 from discord import ui, app_commands
+from discord.ext import tasks
 import signal
 import time
 import tabulate
@@ -30,19 +31,29 @@ dub={1: 1, 2: 1, 3: 1, 4: 2, 5: 2, 6: 3, 7: 3, 8: 3, 9: 4, 10: 4, 11: 4, 12: 5, 
 dub_notes = {1: 'Dark Foreboding: A faint breeze blows past the psyker and those near him, and everyone gets the feeling that somewhere in the galaxy something unfortunate just happened.', 2: 'Warp Echo: For a few moments, all noises cause echoes, regardless of the surroundings.', 3: 'Unholy Stench: The air around the psyker becomes permeated with a bizarre and foul smell.', 4: 'Mind Warp: The psyker suffers a –5 penalty to Willpower tests until the start of his next turn as his own inherent phobias, suspicions, and hatreds surge to the surface of his mind in a wave of unbound emotion.', 5: 'Hoarfrost: The temperature plummets for an instant, and a thin coating of frost forms to cover everything within 3d10 metres.', 6: 'Aura of Taint: All animals within 1d100 metres become spooked and agitated; characters can use the Psyniscience skill to pinpoint the psyker as the cause.', 7: 'Memory Worm: All people within line of sight of the psyker forget some trivial fact or minor personal memory.', 8: 'Spoilage: Food and drink go bad in a 5d10 metre radius.', 9: 'Haunting Breeze: Winds whip up around the psyker for a few moments, blowing light objects around and guttering fires within 3d10 metres.', 10: 'Veil of Darkness: For a brief moment (effectively, until the end of the round), the area within 3d10 metres is plunged into immediate and impenetrable darkness.', 11: 'Distorted Reflections: Mirrors and other reflective surfaces within a radius of 5d10 metres distort or shatter.', 12: 'Breath Leech: Each character (including the psyker) within a 3d10 metre radius becomes short of breath for one round and cannot make any Run or Charge actions.', 13: 'Daemonic Mask: For a fleeting moment, the psyker takes on a daemonic appearance and gains the Fear (1) trait until the start of the next turn. However, he also gains 1 Corruption point.', 14: 'Unnatural Decay: All plant life within 3d10 metres of the psyker withers and dies.', 15: 'Spectral Gale: Howling winds erupt around the psyker, requiring each character (including the psyker) within 4d10 metres to make an Easy (+30) Agility or Strength test to avoid being knocked Prone.', 16: 'Bloody Tears: Blood weeps from stone and wood within 3d10 metres of the psyker. If there are any paintings, pict-displays, statues, or other representations of people inside this area, they appear to be crying blood.', 17: 'The Earth Protests: The ground suddenly shakes, and each character (including the psyker) within a 5d10 metre radius must make an Ordinary (+10) Agility test or be knocked down.', 18: 'Actinic Discharge: Static electricity fills the air within 5d10 metres causing hair to stand on end and unprotected electronics to short out, while the psyker is wreathed in eldritch lightning. The GM is free to resolve the specifics as needed, perhaps using Table 5–4: Haywire Field Effects (see page 147) to provide guidance.', 19: 'Warp Ghosts: Ghostly apparitions fill the air within 3d10 metres around the psyker, flying about and howling in pain for a few brief moments. Each character in the radius (except the psyker himself) must test against Fear (1).', 20: 'Falling Upwards: Everything within 2d10 metres of the psyker (including the psyker himself) rises 1d10 metres into the air as gravity briefly ceases. Almost immediately, everything crashes back to earth, suffering falling damage as appropriate for the distances fallen.', 21: 'Banshee Howl: A shrill keening rings out across the immediate area, shattering glass and forcing each living creature able to hear it (including the psyker) to pass a Challenging (+0) Toughness test or be deafened for 1d10 rounds.', 22: 'The Furies: The Psyker is assailed by unseen horrors. He is slammed to the ground and suffers 1d5 Impact damage (ignoring Armour, but not Toughness bonus) and he must test against Fear (2).', 23: 'Shadow of the Warp: For a split second, the world changes in appearance, and everyone within 1d100 metres has a brief but horrific glimpse of the shadow of the Warp. Each character in the area (including the psyker) must make a Difficult (–10) Willpower test or gain 1d5 Corruption points.', 24: 'Tech Scorn: The machine spirits reject these unnatural ways. All un-warded technology within 5d10 metres malfunctions momentarily, and all ranged weapons jam (see page 224). Each character (including the psyker) withing that range with cybernetic implants mustpass an Ordinary (+10) Toughness test or suffer 1d5 Rending damage, ignoring Toughness bonus and Armour.', 25: 'Warp Madness: A violent ripple of tainted discord causes all characters (except the psyker) within 2d10 metres to make a Difficult (–10) Willpower test; each character who fails gains 1d5 Corruption points and becomes Frenzied for 1 round (see page 127).', 26: 'Perils of the Warp: The Warp opens in a wild maelstrom of unnatural energy. Roll on Table 6–3: Perils of the Warp (page 197).'}
 
 cache = set()
-def on_terminate(t,k):
-    with open('backup.db', 'wb') as f:
-        pickle.dump(db,f)
-        if config['isFirebase']:
-            storage.child('backup.db').put('backup.db')
-    with open('root.db','wb') as f:
-        pickle.dump(db,f)
-        if config['isFirebase']:
-            storage.child('root.db').put('root.db')
-    exit()
+# def on_terminate(t,k):
+#     with open('backup.json', 'wb') as f:
+#         pickle.dump(db,f)
+#         if config['isFirebase']:
+#             storage.child('backup.json').put('backup.json')
+#     with open('root.json','wb') as f:
+#         pickle.dump(db,f)
+#         if config['isFirebase']:
+#             storage.child('root.json').put('root.json')
+#     exit()
 
-signal.signal(signal.SIGINT, on_terminate)
-signal.signal(signal.SIGTERM, on_terminate)
+# signal.signal(signal.SIGINT, on_terminate)
+# signal.signal(signal.SIGTERM, on_terminate)
+#  signal.signal(signal.SIGHUP, on_terminate)
+
+
+@tasks.loop(seconds = 3) # repeat after every 10 seconds
+async def autosave():
+    with open('root.json','wb') as f:
+        pickle.dump(db,f)
+        if config['isFirebase']:
+            time.sleep(7)
+            storage.child('root.json').put('root.json')
 
 #more data handling here
 
@@ -59,6 +70,8 @@ class client(discord.Client):
             self.synced= True
         self.add_view(intRollView())
         print(f"Logged in as {self.user}")
+        autosave.start()
+        
 
     async def on_guild_join(self, guild:discord.Guild):
         db['server_db'][guild.id] = {'admin':None, 'gm':None, 'toEdit':True, 'toUse':True,'toCreate':True, 'toDelete':True}
@@ -2271,18 +2284,18 @@ if config['isFirebase']:
     firebase = pyrebase.initialize_app(config["firebaseConfig"])
     storage = firebase.storage()
     try:
-        with open('root.db','rb') as f:
+        with open('root.json','rb') as f:
             db = pickle.load(f)
-        storage.child('root.db').download(config['firebaseConfig']['storageBucket'],'root.db')
-        storage.child('backup.db').download(config['firebaseConfig']['storageBucket'],'backup.db')
+        storage.child('root.json').download(config['firebaseConfig']['storageBucket'],'root.json')
+        storage.child('backup.json').download(config['firebaseConfig']['storageBucket'],'backup.json')
     except Exception as e:
         if isinstance(e,EOFError):
-            with open('root.db', 'wb') as f:
+            with open('root.json', 'wb') as f:
                 db = {'user_db':{},'server_db':{},'int_ids':{}}
                 pickle.dump(db,f)
             print("Warning: Empty DB file found! data has been reset.")
         elif isinstance(e,FileNotFoundError):
-            with open('root.db', 'wb') as f:
+            with open('root.json', 'wb') as f:
                 db = {'user_db':{},'server_db':{},'int_ids':{}}
                 pickle.dump(db,f)
             print("Warning: DB file not found new created!")
@@ -2290,20 +2303,20 @@ if config['isFirebase']:
             raise e
 else:
     try:
-        with open('root.db','rb') as f:
+        with open('root.json','rb') as f:
             db = pickle.load(f)
     except Exception as e:
         if isinstance(e,EOFError):
-            with open('root.db', 'wb') as f:
+            with open('root.json', 'wb') as f:
                 db = {'user_db':{},'server_db':{},'int_ids':{}}
                 pickle.dump(db,f)
             print("Warning: Empty DB file found! data has been reset.")
         elif isinstance(e,FileNotFoundError):
-            with open('root.db', 'wb') as f:
+            with open('root.json', 'wb') as f:
                 db = {'user_db':{},'server_db':{},'int_ids':{}}
                 pickle.dump(db,f)
             print("Warning: DB file not found new created!")
         else:
             raise e
-    
+
 aclient.run(token)
