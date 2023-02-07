@@ -4,6 +4,7 @@ from difflib import SequenceMatcher
 import pickle
 from discord import ui, app_commands
 import signal
+import time
 import tabulate
 import random
 import pyrebase
@@ -30,12 +31,15 @@ dub_notes = {1: 'Dark Foreboding: A faint breeze blows past the psyker and those
 
 cache = set()
 def on_terminate(t,k):
+    time.sleep(3)
     with open('backup.db', 'wb') as f:
         pickle.dump(db,f)
-        storage.child('backup.db').put('backup.db')
+        if config['isFirebase']:
+            storage.child('backup.db').put('backup.db')
     with open('root.db','wb') as f:
         pickle.dump(db,f)
-        storage.child('root.db').put('root.db')
+        if config['isFirebase']:
+            storage.child('root.db').put('root.db')
     exit()
 
 signal.signal(signal.SIGINT, on_terminate)
