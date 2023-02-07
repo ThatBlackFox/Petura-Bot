@@ -31,7 +31,6 @@ dub_notes = {1: 'Dark Foreboding: A faint breeze blows past the psyker and those
 
 cache = set()
 def on_terminate(t,k):
-    time.sleep(3)
     with open('backup.db', 'wb') as f:
         pickle.dump(db,f)
         if config['isFirebase']:
