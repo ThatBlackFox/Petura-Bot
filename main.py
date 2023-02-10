@@ -1685,7 +1685,7 @@ async def roll(interaction:discord.Interaction, syntax:str):
             return
     elif base_modifier.isalnum():
         try:
-            base_modifier = int(base_modifier)
+            base = int(base_modifier)
             unnat_base = 0
         except:
             await interaction.response.send_message('Invalid characteristic modifier referenced, please use the valid short hand',ephemeral=True)
