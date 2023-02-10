@@ -1687,15 +1687,16 @@ async def roll(interaction:discord.Interaction, syntax:str):
         try:
             base = int(base_modifier)
             unnat_base = 0
+            emb_title = 'Void'
+            base_title='Base'
+            base_name='Base Modifier:'
+            base_full = base_modifier
         except:
-            await interaction.response.send_message('Invalid characteristic modifier referenced, please use the valid short hand',ephemeral=True)
+            await interaction.response.send_message("Please use only numbers or your character's characteristics",ephemeral=True)
             return
     else:
-        emb_title = 'Void'
-        base_title='Base'
-        base_name='Base Modifier:'
-        base_full = base_modifier
-        base = int(base_modifier)
+        await interaction.response.send_message("Please use only numbers or your character's characteristics",ephemeral=True)
+        return
     if extra_modifiers:
         try:
             tree = ast.parse(extra_modifiers, mode='eval')
