@@ -4,3 +4,8 @@ backup*
 config copy.json
 private.py
 Procfile
+build
+dist
+app.ico
+*.spec
+ting.py

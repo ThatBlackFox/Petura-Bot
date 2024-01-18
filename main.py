@@ -4,7 +4,6 @@ from difflib import SequenceMatcher
 import pickle
 from discord import ui, app_commands
 from discord.ext import tasks
-import signal
 import time
 import tabulate
 import random
@@ -12,7 +11,7 @@ import pyrebase
 import json
 
 try:
-    with open('config.json','r') as f:
+    with open('config_copy.json','r') as f:
         config = json.load(f)
 
 except Exception as e:
@@ -20,7 +19,6 @@ except Exception as e:
         raise FileNotFoundError('No config file found')
     else:
         raise TypeError('File is not a valid json')
-
 
 db = {}
 int_abv = {'ag': 'Agility','int': 'Intelligence','per':'Perception','const':'Constant Vigilance'}
@@ -59,7 +57,7 @@ class client(discord.Client):
         
 
     async def on_guild_join(self, guild:discord.Guild):
-        db['server_db'][guild.id] = {'admin':None, 'gm':None, 'toEdit':True, 'toUse':True,'toCreate':True, 'toDelete':True}
+        db['server_db'][guild.id] = {'admin':None, 'gm':None, 'toEdit':True, 'toUse':True,'toCreate':True, 'toDelete':True, 'ruleSet':"Standard"}
     
     async def on_guild_remove(self, guild):
         db['server_db'].pop(guild.id)
@@ -70,19 +68,21 @@ class client(discord.Client):
         Check1 = False
         if guild[f'to{action}']:
             Check1= True 
-        elif guild['admin']:
+        if guild['admin']:
             if guild['admin'] in roles:
                 Check1= True
-        elif guild['gm']:
+        if guild['gm']:
             if guild['gm'] in roles:
                 Check1= True
-        elif user.guild_permissions.administrator:
+        if user.guild_permissions.administrator:
             Check1= True
         if action!='Create':
             if data['origin'] == user.guild.id:
                 Check2 = True
             elif data['owner'] == user.id:
                 Check2 = True
+            else:
+                Check2 = False
             return Check1*Check2
         else:
             return Check1
@@ -360,7 +360,7 @@ class page5(ui.Modal, title = "Character Sheet | Conditions"):
         # 0 - Public 
         # 1 - Server specific mode
         # 2 - private
-        self.char['visib'] = 0
+        self.char['visib'] = 2
         self.char['whitelist'] = [] #empty list to allow whitelist other server if user changes the visibility of the character
         self.char['origin'] = interaction.guild.id
         embed.set_footer(text='Character Sheet | page 4')
@@ -368,9 +368,9 @@ class page5(ui.Modal, title = "Character Sheet | Conditions"):
         await interaction.response.send_message(content='Character Creation Complete, Please use `/image` to add a art to your character',embed=embed)
         self.char.pop('user')
         if self.char['owner'] in db['user_db']:
-            db['user_db'][self.char['owner']]['char_list'][str(len(db['user_db'][self.char['owner']])+1)] = self.char
+            db['user_db'][self.char['owner']]['char_list'].append(self.char)
         else:
-            db['user_db'][self.char['owner']] = {'char_list': {'1':self.char},'weapons':{}}
+            db['user_db'][self.char['owner']] = {'char_list': [self.char],'weapons':{}}
 
 #-------------------------------------------------------------
 # Character Sheets - Edits
@@ -750,18 +750,19 @@ class ViewEmbed():
         elif pos==3:
             return self.page3()
     def page1(self):
-        emb = discord.Embed(title=f"{'(Active) ' if self.char_id == '1' else ''}{self.char['name'].capitalize()} | Overview", color=discord.Color.from_str('#ffdd70'))
+        emb = discord.Embed(title=f"{'(Active) ' if self.char_id == 0 else ''}{self.char['name'].capitalize()} | Overview", color=discord.Color.from_str('#ffdd70'))
         emb.set_image(url = self.char['img_url'])
         emb.add_field(name='● Name:', value=self.char['name'], inline=False)
         emb.add_field(name='● Source:', value=self.char['source'], inline=False)
         emb.add_field(name='● Experience:', value=self.char['exp'], inline=False)
         emb.add_field(name='● Backstory:', value=self.char['bio'], inline=False)
         emb.set_footer(text = 'Page 1/3')
-        emb.set_thumbnail(url=self.user.avatar.url)
+        # owner = aclient.get_user(self.char['owner'])
+        # emb.set_thumbnail(url=owner.avatar.url)
         return emb
 
     def page2(self):
-        emb = discord.Embed(title=f"{'(Active) ' if self.char_id == '1' else ''}{self.char['name'].capitalize()} | Characteristics", color=discord.Color.from_str('#ffdd70'))
+        emb = discord.Embed(title=f"{'(Active) ' if self.char_id == 0 else ''}{self.char['name'].capitalize()} | Characteristics", color=discord.Color.from_str('#ffdd70'))
         emb.add_field(name='● Weapon Skill (WS):', value=self.char['ws'])
         emb.add_field(name='● Intelligence (INT):', value=self.char['int'])
         emb.add_field(name='● Ballastic Skill (BS):', value=self.char['bs'])
@@ -777,7 +778,7 @@ class ViewEmbed():
         return emb
 
     def page3(self):
-        emb = discord.Embed(title=f"{'(Active) ' if self.char_id == '1' else ''}{self.char['name'].capitalize()} | Conditions", color=discord.Color.from_str('#ffdd70'))
+        emb = discord.Embed(title=f"{'(Active) ' if self.char_id == 0 else ''}{self.char['name'].capitalize()} | Conditions", color=discord.Color.from_str('#ffdd70'))
         if len(self.char['ag'])>1:
             bonus = int(self.char['ag'][0]) 
             move = f"Half: {bonus*1} | Full: {bonus*2} | Charge: {bonus*3} | Run: {bonus*6}"
@@ -939,16 +940,19 @@ async def edit(interaction: discord.Interaction):
         char_list = db['user_db'][user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
@@ -957,12 +961,13 @@ async def edit(interaction: discord.Interaction):
         view.add_item(menu)
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
+                char_id = int(menu.values[0])
                 if aclient.canDo(interaction.user,'Edit',char_list[char_id]):
                     select_view = EditSelectBar(char_list[char_id],sub_inter.user)
                     await sub_inter.response.send_message(view=select_view,embed=select_view.embed)
                 else:
-                    await interaction.response.send_message("You are'nt allowed to edit characters of this server")
+                    await sub_inter.response.send_message("You are not allowed to edit characters of this server")
+                    return
         menu.callback=internal_check
         await interaction.response.send_message(view=view)
     else:
@@ -974,16 +979,19 @@ async def image(interaction: discord.Interaction, attachment:discord.Attachment)
         char_list = db['user_db'][interaction.user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
@@ -994,7 +1002,7 @@ async def image(interaction: discord.Interaction, attachment:discord.Attachment)
         embed.set_image(url=attachment.url)
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
+                char_id = int(menu.values[0])
                 embed.set_footer(text='Image added successfully!')
                 view.stop()
                 await sub_inter.message.edit(embed=embed,view=None)
@@ -1011,16 +1019,19 @@ async def view(interaction: discord.Interaction, user:discord.User):
         char_list = db['user_db'][user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
@@ -1029,7 +1040,9 @@ async def view(interaction: discord.Interaction, user:discord.User):
         view.add_item(menu)
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
+                print(menu.values[0])
+                char_id = int(menu.values[0])
+                type(char_id)
                 emb = ViewEmbed(char=char_list[char_id],user=interaction.user,char_id=char_id)
                 await sub_inter.response.send_message(view=ViewNavBar(1,emb),embed=emb.page1())
         menu.callback=internal_check
@@ -1043,31 +1056,34 @@ async def set_(interaction:discord.Interaction):
         char_list = db['user_db'][interaction.user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
             return
-        embed = discord.Embed(title=f'Active Character | {interaction.user.name}',description=f"Current active character set to: `{char_list['1']['name']}`")
-        embed.set_thumbnail(url=char_list['1']['img_url'])
+        embed = discord.Embed(title=f'Active Character | {interaction.user.name}',description=f"Current active character set to: `{char_list[0]['name']}`")
+        embed.set_thumbnail(url=char_list[0]['img_url'])
         menu=discord.ui.Select(placeholder='Character Menu',options=options,custom_id='ImageMenu')
         view.add_item(menu)
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
+                char_id = int(menu.values[0])
                 view.stop()
-                char_list[char_id],char_list['1']=char_list['1'],char_list[char_id]
-                embed = discord.Embed(title=f'Active Character | {interaction.user.name}',description=f"Current active character set to: `{char_list['1']['name']}`")
-                embed.set_thumbnail(url=char_list['1']['img_url'])
+                char_list[char_id],char_list[0]=char_list[0],char_list[char_id]
+                embed = discord.Embed(title=f'Active Character | {interaction.user.name}',description=f"Current active character set to: `{char_list[0]['name']}`")
+                embed.set_thumbnail(url=char_list[0]['img_url'])
                 await sub_inter.message.edit(embed=embed,view=None)
         menu.callback=internal_check
         await interaction.response.send_message(embed=embed,view=view)
@@ -1081,16 +1097,19 @@ async def visib(interaction:discord.Interaction):
         char_list = db['user_db'][user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
@@ -1099,7 +1118,7 @@ async def visib(interaction:discord.Interaction):
         view.add_item(menu)
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
+                char_id = int(menu.values[0])
                 emb = ViewEmbed(char=char_list[char_id],user=interaction.user,char_id=char_id)
                 select_view = VisibSelectBar(char_list[char_id],sub_inter.user)
                 await sub_inter.response.send_message(view=select_view,embed=select_view.embed)
@@ -1114,16 +1133,19 @@ async def delete(interaction:discord.Interaction):
         char_list = db['user_db'][interaction.user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
@@ -1133,12 +1155,13 @@ async def delete(interaction:discord.Interaction):
         embed = discord.Embed(title='Character Deletion',color=discord.Color.from_str('#ffdd70'))
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
+                char_id = int(menu.values[0])
                 if not aclient.canDo(interaction.user,'Delete',db['user_db'][interaction.user.id]['char_list'][char_id]):
                     embed.set_footer(text='Unable to delete character [Permission Denied]')
                     await sub_inter.message.edit(embed=embed,view=None)
                     await sub_inter.response.send_message('Unable to delete character [Permission Denied]',ephemeral=True)
                     view.stop()
+                    return
                 embed.set_footer(text='Character deleted successfully!')
                 view.stop()
                 db['user_db'][interaction.user.id]['char_list'].pop(char_id)
@@ -1153,7 +1176,7 @@ CharGroup.add_command(create)
 CharGroup.add_command(edit)
 CharGroup.add_command(image)
 CharGroup.add_command(view)
-CharGroup.add_command(visib)
+#CharGroup.add_command(visib)
 CharGroup.add_command(set_)
 CharGroup.add_command(delete)
 bot.add_command(CharGroup)
@@ -1190,16 +1213,19 @@ async def adminEdit(interaction:discord.Interaction,user:discord.User):
         char_list = db['user_db'][user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
@@ -1208,7 +1234,7 @@ async def adminEdit(interaction:discord.Interaction,user:discord.User):
         view.add_item(menu)
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
+                char_id = int(menu.values[0])
                 if aclient.canDo(interaction.user,'Edit',char_list[char_id]):
                     select_view = EditSelectBar(char_list[char_id],sub_inter.user)
                     await sub_inter.response.send_message(view=select_view,embed=select_view.embed)
@@ -1226,16 +1252,19 @@ async def adminDelete(interaction:discord.Interaction,user:discord.User):
         char_list = db['user_db'][user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
@@ -1245,13 +1274,13 @@ async def adminDelete(interaction:discord.Interaction,user:discord.User):
         embed = discord.Embed(title='Admin Panel | Character Deletion',color=discord.Color.from_str('#ffdd70'))
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
-                if not aclient.canDo(interaction.user,'Delete',db['user_db'][user.id][char_id]):
+                char_id = int(menu.values[0])
+                if not aclient.canDo(interaction.user,'Delete',db['user_db'][user.id]['char_list'][char_id]):
                     embed.set_footer(text='Unable to delete character [Permission Denied]')
                     await sub_inter.message.edit(embed=embed,view=None)
                     await sub_inter.response.send_message('Unable to delete character [Permission Denied]',ephemeral=True)
-                db['user_db'][user.id].pop(char_id)
-                if len(db['user_db'][user.id])==0:
+                char_list.pop(char_id)
+                if len(char_list)==0:
                     db['user_db'].pop(user.id)
                 embed.set_footer(text='Character deleted successfully!')
                 await sub_inter.message.edit(embed=embed,view=None)
@@ -1261,6 +1290,49 @@ async def adminDelete(interaction:discord.Interaction,user:discord.User):
         await interaction.response.send_message(view=view)
     else:
         await interaction.response.send_message('User has no characters to delete')
+
+
+
+@app_commands.command(name='image', description='Add image to your character(s)')
+@is_admin()
+async def adminImage(interaction: discord.Interaction, member:discord.Member,attachment:discord.Attachment):
+    if member.id in db['user_db']:
+        char_list = db['user_db'][member.id]['char_list']
+        options = []
+        view=discord.ui.View()
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
+            if char_list[char]['visib'] == 2:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
+                    pass
+                else:
+                    continue
+            options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
+        if not options:
+            await interaction.response.send_message('No Viewable Characters available')
+            return
+        menu=discord.ui.Select(placeholder='Character Menu',options=options,custom_id='ImageMenu')
+        view.add_item(menu)
+        embed = discord.Embed(title='Character Image',color=discord.Color.from_str('#ffdd70'))
+        embed.set_image(url=attachment.url)
+        async def internal_check(sub_inter:discord.Interaction):
+            if sub_inter.user.id == interaction.user.id:
+                char_id = int(menu.values[0])
+                embed.set_footer(text='Image added successfully!')
+                view.stop()
+                await sub_inter.message.edit(embed=embed,view=None)
+                await sub_inter.response.send_message('Image added successfully!',ephemeral=True)
+                db['user_db'][member.id]['char_list'][char_id]['img_url'] = attachment.url
+        menu.callback=internal_check
+        await interaction.response.send_message(embed=embed,view=view)
+    else:
+        await interaction.response.send_message('Create a character before adding an image!')
 
 @AdminGroup.error
 async def on_error(interaction:discord.Interaction,error:discord.app_commands.AppCommandError):
@@ -1272,6 +1344,7 @@ async def on_error(interaction:discord.Interaction,error:discord.app_commands.Ap
 AdminGroup.add_command(adminCreate)
 AdminGroup.add_command(adminEdit)
 AdminGroup.add_command(adminDelete)
+AdminGroup.add_command(adminImage)
 bot.add_command(AdminGroup)
 
 
@@ -1336,11 +1409,63 @@ async def configDelete(interaction:discord.Interaction, setting:bool):
         db['server_db'][interaction.guild.id]['toDelete'] = False
     await interaction.response.send_message(f"Server configuration for `Character Deletion` for all players is now set to `{setting}`")
 
+class rulesButton(ui.View):
+    def __init__(self, char):
+        super().__init__()
 
-IntConfigGroup.add_command(configRestrict)
+
+@app_commands.command(name='system',description='Choose which sort of roll mechanic you want to use')
+@is_admin()
+async def gameSystem(interaction:discord.Interaction):
+    view=discord.ui.View()
+    options = [
+        discord.SelectOption(label="Standard",value='Standard'),
+        discord.SelectOption(label="Classic",value='Classic')
+    ]
+    menu=discord.ui.Select(placeholder='Mechanics Menu',options=options,custom_id='MechanicMenu')
+    view.add_item(menu)
+    async def internal_check(sub_inter:discord.Interaction):
+        if sub_inter.user.id == interaction.user.id:
+            view.stop()
+            embed = discord.Embed(title=f'Game System | {interaction.user.name}',color=discord.Color.from_str('#ffdd70'))
+            embed.description = f"{menu.values[0]} has been set as current server's ruleset"
+            if menu.values[0]=='Standard':
+                db['server_db'][interaction.guild.id]['ruleSet'] = "Standard"
+            else:
+                db['server_db'][interaction.guild.id]['ruleSet'] = "Classic"
+            await sub_inter.message.edit(embed=embed,view=None)
+    menu.callback= internal_check
+    embed = discord.Embed(title=f'Game System | {interaction.user.name}',color=discord.Color.from_str('#ffdd70'))
+    embed.description = f"""
+Game system selectors allows you to choose which rules to use while rolling the dice
+The following systems are currently supported by the bot:
+• Standard
+• Classic
+~~**⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃**~~
+‣ **__Standard:__**
+>   This system will use the The Dark Heresy 2nd Edition rules to roll the dice.
+‣ **__Classic:__**
+>   This system will use the most popular system to decide how the dices are rolled.
+`Current rule-set is: {db['server_db'][interaction.guild.id]['ruleSet']}`
+Press `rules` to see how the the rules used in the bot
+"""
+    rules = discord.ui.Button(label='Rules',style=discord.ButtonStyle.red, custom_id='ConfigRules')
+    async def button_check(sub_inter:discord.Interaction):
+         if sub_inter.user.id == interaction.user.id:
+            view.stop()
+            embed = discord.Embed(title=f'Game System | {interaction.user.name}',color=discord.Color.from_str('#ffdd70'))
+            embed.description = f"Soon™️"
+            await sub_inter.message.edit(embed=embed,view=None)
+    rules.callback=button_check
+    view.add_item(rules)
+    await interaction.response.send_message(embed=embed,view=view)
+    
+    
+
 IntConfigGroup.add_command(configCreate)
 IntConfigGroup.add_command(configEdit)
 IntConfigGroup.add_command(configDelete)
+ConfigGroup.add_command(gameSystem)
 ConfigGroup.add_command(adminRole)
 ConfigGroup.add_command(gmRole)
 ConfigGroup.add_command(IntConfigGroup)
@@ -1349,7 +1474,6 @@ bot.add_command(ConfigGroup)
 #-------------------------------------------------------------
 # GM commands functions
 #-------------------------------------------------------------
-
 
 GmGroup = app_commands.Group(name="gm", description="GM Panel")
 ExpGroup = app_commands.Group(name="exp", description="Exp Panel")
@@ -1382,16 +1506,19 @@ async def gmEdit(interaction:discord.Interaction,user:discord.User):
         char_list = db['user_db'][user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
@@ -1400,7 +1527,7 @@ async def gmEdit(interaction:discord.Interaction,user:discord.User):
         view.add_item(menu)
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
+                char_id = int(menu.values[0])
                 if aclient.canDo(interaction.user,'Edit',char_list[char_id]):
                     select_view = EditSelectBar(char_list[char_id],sub_inter.user)
                     await sub_inter.response.send_message(view=select_view,embed=select_view.embed)
@@ -1419,16 +1546,19 @@ async def gmExpSet(interaction:discord.Interaction,user:discord.User,amount:int)
         char_list = db['user_db'][user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
@@ -1437,7 +1567,7 @@ async def gmExpSet(interaction:discord.Interaction,user:discord.User,amount:int)
         view.add_item(menu)
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
+                char_id = int(menu.values[0])
                 if aclient.canDo(interaction.user,'Edit',char_list[char_id]):
                     char_list[char_id]['exp']=amount
                     await sub_inter.response.send_message(f"{char_list[char_id]['name']}'s exp is set to {amount}")
@@ -1456,16 +1586,19 @@ async def gmExpAdd(interaction:discord.Interaction,user:discord.User,amount:int)
         char_list = db['user_db'][user.id]['char_list']
         options = []
         view=discord.ui.View()
-        for char in char_list:
+        roles = [role.id for role in interaction.user.roles]
+        for char in range(len(char_list)):
             if char_list[char]['visib'] == 2:
-                if interaction.user.id == char_list[char]['owner']:
+                if interaction.user.guild_permissions.administrator:
+                    pass
+                elif char_list[char]['owner'] == interaction.user.id:
+                    pass
+                elif db['server_db'][interaction.guild.id]['admin'] in roles:
+                    pass
+                elif db['server_db'][interaction.guild.id]['gm'] in roles:
                     pass
                 else:
                     continue
-            elif char_list[char]['visib'] == 0:
-                pass
-            else:
-                pass
             options.append(discord.SelectOption(label=char_list[char]['name'],value=char))
         if not options:
             await interaction.response.send_message('No Viewable Characters available')
@@ -1474,7 +1607,7 @@ async def gmExpAdd(interaction:discord.Interaction,user:discord.User,amount:int)
         view.add_item(menu)
         async def internal_check(sub_inter:discord.Interaction):
             if sub_inter.user.id == interaction.user.id:
-                char_id = menu.values[0]
+                char_id = int(menu.values[0])
                 if aclient.canDo(interaction.user,'Edit',char_list[char_id]):
                     char_list[char_id]['exp']+=amount
                     await sub_inter.response.send_message(f"{char_list[char_id]['name']}'s exp is set to {amount}")
@@ -1565,20 +1698,20 @@ class intRollView(ui.View):
         super().__init__(timeout=timeout)
         self.embed = intRollEmbed()
 
-    @discord.ui.select(placeholder='Use Your Active Character Here',options=[discord.SelectOption(label=int_abv[opt],value=opt) for opt in int_abv],custom_id='InitiativeViewMenu',min_values=1,max_values=2)
+    @discord.ui.select(placeholder="Select your active character's characteristic",options=[discord.SelectOption(label=int_abv[opt],value=opt) for opt in int_abv],custom_id='InitiativeViewMenu',min_values=1,max_values=2)
     async def rollMenu(self, sub_inter:discord.Interaction, menu:ui.Select):
         if sub_inter.user.id in db['int_ids'][sub_inter.message.id]['players']:
             await sub_inter.response.send_message('You can only roll once!',ephemeral=True)
             return
         if sub_inter.user.id in db['user_db']:
-            char = db['user_db'][sub_inter.user.id]['1'].copy()
-            if char['visib'] == 2:
-                await sub_inter.response.send_message('Character sheet visibility is `Private`, Change the visibility of your character sheet using `/char visibility` or use a different character using `/char set`',ephemeral=True)
-                return
-            elif char['visib'] == 1:
-                if not sub_inter.guild.id in char['whitelist']:
-                    await sub_inter.response.send_message('Character sheet visibility is `Server Specific`, whitelist this server or change the visibility of your character sheet using `/char visibility` or use a different character using `/char set`',ephemeral=True)
-                    return
+            char = db['user_db'][sub_inter.user.id]['char_list'][0].copy()
+            # if char['visib'] == 2:
+            #     await sub_inter.response.send_message('Character sheet visibility is `Private`, Change the visibility of your character sheet using `/char visibility` or use a different character using `/char set`',ephemeral=True)
+            #     return
+            # elif char['visib'] == 1:
+            #     if not sub_inter.guild.id in char['whitelist']:
+            #         await sub_inter.response.send_message('Character sheet visibility is `Server Specific`, whitelist this server or change the visibility of your character sheet using `/char visibility` or use a different character using `/char set`',ephemeral=True)
+            #         return
             char['rolled']=0
             for chrt in menu.values:
                 rolled = random.randint(1,10)
@@ -1667,7 +1800,7 @@ async def roll(interaction:discord.Interaction, syntax:str):
     else:
         base_modifier = syntax
         extra_modifiers = 0
-    character='1'
+    character=0
     if base_modifier.isalpha():
         if interaction.user.id in db['user_db']:
             if base_modifier.lower() in db['user_db'][interaction.user.id]['char_list'][character]:
@@ -1705,7 +1838,7 @@ async def roll(interaction:discord.Interaction, syntax:str):
         if not all(isinstance(node, (ast.Expression,
                 ast.UnaryOp, ast.unaryop,
                 ast.BinOp, ast.operator,
-                ast.Num)) for node in ast.walk(tree)):
+                ast.Constant)) for node in ast.walk(tree)):
             em = 0
         em = eval(compile(tree, filename='', mode='eval'))
     else:
@@ -1716,28 +1849,52 @@ async def roll(interaction:discord.Interaction, syntax:str):
         em = -60
     acc = base+em
     rolled = random.randint(1,100)
-    if rolled <= acc :
-        emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(0,255,111))
-        emb.add_field(name=base_name,value=base)
-        emb.add_field(name='Additional Modifier(s):',value=em)
-        emb.add_field(name='Target Number:',value=acc)
-        if int(acc/10)-int(rolled/10)>0:
-            emb.add_field(name='Degree of Sucess:', value=int(acc/10)-int(rolled/10)+unnat_base)
+    if db['server_db'][interaction.guild.id]['ruleSet']=='Standard':
+        if rolled <= acc :
+            emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(0,255,111))
+            emb.add_field(name=base_name,value=base)
+            emb.add_field(name='Additional Modifier(s):',value=em)
+            emb.add_field(name='Target Number:',value=acc)
+            if int(acc/10)-int(rolled/10)>0:
+                emb.add_field(name='Degree of Success:', value=1+int(acc/10)-int(rolled/10)+unnat_base)
+            else:
+                emb.add_field(name='Degree of Success:', value=1+unnat_base)
+            emb.add_field(name='Rolled:',value=rolled)
+            await interaction.response.send_message(embed=emb)
         else:
-            emb.add_field(name='Degree of Sucess:', value=1+unnat_base)
-        emb.add_field(name='Rolled:',value=rolled)
-        await interaction.response.send_message(embed=emb)
+            emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(255,25,25))
+            emb.add_field(name=base_name,value=base)
+            emb.add_field(name='Additional Modifier(s):',value=em)
+            emb.add_field(name='Target Number:',value=acc)
+            if int(acc/10)-int(rolled/10)<0:
+                emb.add_field(name='Degree of Failure:', value=1+abs(int(acc/10)-int(rolled/10)))
+            else:
+                emb.add_field(name='Degree of Failure:', value='1')
+            emb.add_field(name='Rolled:',value=rolled)
+            await interaction.response.send_message(embed=emb)
     else:
-        emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(255,25,25))
-        emb.add_field(name=base_name,value=base)
-        emb.add_field(name='Additional Modifier(s):',value=em)
-        emb.add_field(name='Target Number:',value=acc)
-        if int(acc/10)-int(rolled/10)<0:
-            emb.add_field(name='Degree of Failure:', value=abs(int(acc/10)-int(rolled/10)))
+        if rolled <= acc :
+            emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(0,255,111))
+            emb.add_field(name=base_name,value=base)
+            emb.add_field(name='Additional Modifier(s):',value=em)
+            emb.add_field(name='Target Number:',value=acc)
+            if int(acc/10)-int(rolled/10)>0:
+                emb.add_field(name='Degree of Success:', value=int(acc/10)-int(rolled/10)+unnat_base)
+            else:
+                emb.add_field(name='Degree of Success:', value=unnat_base)
+            emb.add_field(name='Rolled:',value=rolled)
+            await interaction.response.send_message(embed=emb)
         else:
-            emb.add_field(name='Degree of Failure:', value='0')
-        emb.add_field(name='Rolled:',value=rolled)
-        await interaction.response.send_message(embed=emb)
+            emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(255,25,25))
+            emb.add_field(name=base_name,value=base)
+            emb.add_field(name='Additional Modifier(s):',value=em)
+            emb.add_field(name='Target Number:',value=acc)
+            if int(acc/10)-int(rolled/10)<0:
+                emb.add_field(name='Degree of Failure:', value=abs(int(acc/10)-int(rolled/10)))
+            else:
+                emb.add_field(name='Degree of Failure:', value='0')
+            emb.add_field(name='Rolled:',value=rolled)
+            await interaction.response.send_message(embed=emb)
 
 
 @app_commands.command(name='dmg', description="Roll a d10 with(out) modifiers for damage")
@@ -1794,7 +1951,7 @@ async def psyc(interaction:discord.Interaction, syntax:str):
     else:
         base_modifier = syntax
         extra_modifiers = 0
-    character='1'
+    character=0
     if base_modifier.isalpha():
         if interaction.user.id in db['user_db']:
             if base_modifier.lower() in db['user_db'][interaction.user.id]['char_list'][character] or base_modifier=='f':
@@ -1810,8 +1967,15 @@ async def psyc(interaction:discord.Interaction, syntax:str):
             await interaction.response.send_message('You need to have a character to reference its stats',ephemeral=True)
             return
     elif base_modifier.isalnum():
-        await interaction.response.send_message('Invalid characteristic modifier referenced, please use the valid short hand',ephemeral=True)
-        return
+        try:
+            base = int(base_modifier)
+            emb_title = 'Void'
+            base_title='Base'
+            base_name='Base Modifier:'
+            base_full = base_modifier
+        except:
+            await interaction.response.send_message('Invalid characteristic modifier referenced, please use the valid short hand',ephemeral=True)
+            return
     else:
         emb_title = 'Void'
         base_title='Base'
@@ -1848,14 +2012,18 @@ async def psyc(interaction:discord.Interaction, syntax:str):
         if int(acc/10)-int(rolled/10)>0:
             dos=int(acc/10)-int(rolled/10)
         else:
-            dos=0
+            dos=1
         
-        emb.add_field(name='Degree of Sucess:',value=dos)
+        emb.add_field(name='Degree of Success:',value=dos)
         emb.add_field(name='Rolled:',value=rolled)
         if str(rolled)==str(rolled)[::-1]:
             reroll = random.randint(1,100)
             tot =reroll
-            out,val = dub_notes[dub[reroll]].split(':',maxsplit=1)
+            if reroll>75:
+                dubroll = 75
+            else:
+                dubroll= reroll
+            out,val = dub_notes[dub[dubroll]].split(':',maxsplit=1)
             emb.add_field(name='Psychic Phenomena:',value=f'● **Re-Roll:**  {reroll}\n● **Total (without DoS):**  {tot}\n● **{out}:** {val}',inline=False)
             if reroll>75:
                 reroll = random.randint(1,100)
@@ -1873,10 +2041,14 @@ async def psyc(interaction:discord.Interaction, syntax:str):
             dof =0
         emb.add_field(name='Degree of Failure:',value=dof)
         emb.add_field(name='Rolled:',value=rolled)
-        if str(rolled)==str(rolled)[::-1]:
+        if str(rolled)==str(rolled)[::-1] and str(rolled)>1:
             reroll = random.randint(1,100)
             tot = reroll+dof*10
-            out,val = dub_notes[dub[reroll]].split(':',maxsplit=1)
+            if reroll>75:
+                dubroll = 75
+            else:
+                dubroll = reroll
+            out,val = dub_notes[dub[dubroll]].split(':',maxsplit=1)
             emb.add_field(name='Psychic Phenomena:',value=f'● **Re-Roll:**  {reroll}\n● **Total (with DoF):**  {tot}\n● **{out}:** {val}',inline=False)
             if reroll>75:
                 reroll = random.randint(1,100)
@@ -1961,7 +2133,7 @@ async def wepCreate(inter:discord.Interaction):
 @app_commands.command(name='delete')
 @app_commands.autocomplete(weapon=weapon_autocomplete)
 async def wepDelete(inter:discord.Interaction,weapon:str):
-    if not 'weapon' in db['user_db'][inter.user.id]:
+    if not 'weapons' in db['user_db'][inter.user.id]:
         await inter.response.send_message('you have no weapons to delete!')
         return
     if weapon in db['user_db'][inter.user.id]['weapons']:
@@ -1973,12 +2145,13 @@ async def wepDelete(inter:discord.Interaction,weapon:str):
 @app_commands.command(name='list')
 async def wepList(inter:discord.Interaction):
     if 'weapons' in db['user_db'][inter.user.id]:
-        header=['Name','Modifier','Description','ID']
-        rows =  [[db['user_db'][inter.user.id]['weapons'][x]['name'],db['user_db'][inter.user.id]['weapons'][x]['mods'],db['user_db'][inter.user.id]['weapons'][x]['bio'][:25],x] for x in db['user_db'][inter.user.id]['weapons']]
-        m=tabulate.tabulate(rows, header)
-        await inter.response.send_message(f"```{m[:1994]}```")
-    else:
-        await inter.response.send_message('No weapons to list!')
+        if db['user_db'][inter.user.id]['weapons']:
+            header=['Name','Modifier','Description']
+            rows =  [[db['user_db'][inter.user.id]['weapons'][x]['name'],db['user_db'][inter.user.id]['weapons'][x]['mods'],db['user_db'][inter.user.id]['weapons'][x]['bio'][:25]] for x in db['user_db'][inter.user.id]['weapons']]
+            m=tabulate.tabulate(rows, header)
+            await inter.response.send_message(f"```{m[:1994]}```")
+            return
+    await inter.response.send_message('No weapons to list!')
 
 @app_commands.command(name='roll')
 @app_commands.autocomplete(weapon=weapon_autocomplete)
@@ -2082,33 +2255,26 @@ class dataEditPage1(ui.Modal, title = "Data Card Sheet | Editing"):
 # Datacard commands functions
 #-------------------------------------------------------------
 
-def search(name,_type,keywords,interaction):
-    name_q = []
-    desc_q =[]
+def search(name,_type,_keywords,interaction):
+    if _keywords:
+        keywords = _keywords.split(',')
+    q = []
     for item in db['server_db'][interaction.guild.id]['datacards']:
-        ratio = round(SequenceMatcher(None, name, item['name']).ratio(),3)
+        ratio = 0
+        if name:
+            ratio += round(SequenceMatcher(None, name, item['name']).ratio(),3)
         if _type:
-            type_ratio = round(SequenceMatcher(None, _type, item['type']).ratio(),3)
-            if type_ratio > 0.75:
-                ratio+=0.5
-        if ratio > 0.75:
-            if keywords:
-                keywords = keywords.split(',')
-                for keyword in keywords:
-                    if keyword in item['desc']:
-                        ratio+=0.1
-                if not ratio<0.60:
-                    name_q.append((item,ratio))
-        else:
-            if keywords:
-                for keyword in keywords:
-                    if keyword in item['desc']:
-                        ratio+=0.1
-            if not ratio<0.60:
-                desc_q.append((item,ratio))
+            ratio += round(SequenceMatcher(None, _type, item['type']).ratio(),3)
         
-        q = sorted(name_q+desc_q, key=lambda t:t[1])
-        q.reverse()
+        if _keywords:
+            for keyword in keywords:
+                if keyword in item['desc']:
+                    ratio+=1/len(keywords)
+        if ratio>0.6:
+            q.append((item,ratio))
+    q = sorted(q, key=lambda t:t[1])
+    q.reverse()
+
     return q
 
 
@@ -2124,13 +2290,15 @@ async def dataCreate(interaction:discord.Interaction):
 @app_commands.command(name='search',description="grad list of datacards for reference!")
 @app_commands.describe(keywords='Make sure to separate the words/sentences using a comma')
 async def dataSearch(interaction:discord.Interaction,name:str=None,type:str=None,keywords:str=None,id:int=None):
+    if name==None and type==None and keywords==None and id==None:
+        await interaction.response.send_message("Provide at least one parameter to search")
+        return
     _type = str(type)
     type = aclient.type
     if 'datacards' in db['server_db'][interaction.guild.id]:
-        print(id)
         if id==None:
+            print(type(keywords))
             q = search(name,_type,keywords,interaction)
-            print(q)
             header=['Name','Type','Description','ID']
             rows =  [[item['name'],item['type'],item['desc'],db['server_db'][interaction.guild.id]['datacards'].index(item)] for item,r in q]
             m=tabulate.tabulate(rows, header)
@@ -2159,7 +2327,7 @@ async def dataList(interaction:discord.Interaction):
         m=tabulate.tabulate(rows, header)
         await interaction.response.send_message(f"```{m[:1994]}```")
 
-@app_commands.command(name='view',description="view all the datacard names and other info")
+@app_commands.command(name='view',description="view a datacard and other info")
 async def dataView(interaction:discord.Interaction,id:int):
     if id>len(db['server_db'][interaction.guild.id]['datacards']):
         await interaction.response.send_message('Invalid ID',ephemeral=True)
@@ -2216,6 +2384,7 @@ Datagroup.add_command(dataSearch)
 Datagroup.add_command(dataEdit)
 Datagroup.add_command(dataDelete)
 Datagroup.add_command(dataList)
+Datagroup.add_command(dataView)
 bot.add_command(Datagroup)
 
 @bot.error
@@ -2242,12 +2411,12 @@ async def help(inter:discord.Interaction, command:str=None):
     if not command:
         embed = discord.Embed(title="Help section", color=discord.Color.from_str('#ffdd70'))
         embed.set_thumbnail(url="https://media.discordapp.net/attachments/1030493512283717753/1030493572094513242/bot.png")
-        embed.add_field(name='Character 👕',value='`create`, `edit`, `image`, `view`, `visibility`, `set`, `delete`')
+        embed.add_field(name='Character 👕',value='`create`, `edit`, `image`, `view`, `set`, `delete`')
         embed.add_field(name='Weapons ⚔️',value='`create`, `delete`, `list`, `roll`')
         embed.add_field(name='Admin 🛠️',value='`create`, `edit`, `delete`')
         embed.add_field(name='Gm 🧙‍♂️',value='`create`, `edit`, `exp`')
         embed.add_field(name='Rolls 🎲',value='`dmg`, `char`, `psyc`, `initiative`')
-        embed.add_field(name='Datacard 📜',value='`create`, `search`, `edit`, `delete`, `list`')
+        embed.add_field(name='Datacard 📜',value='`create`, `search`, `edit`, `delete`, `list`, `view`')
         embed.add_field(name='Config ⚙️',value='`admin`, `gm`, `allow`')
         await inter.response.send_message(embed=embed)
         return
@@ -2307,3 +2476,4 @@ else:
             raise e
 
 aclient.run(token)
+#test.
