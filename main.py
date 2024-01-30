@@ -1419,8 +1419,9 @@ class rulesButton(ui.View):
 async def gameSystem(interaction:discord.Interaction):
     view=discord.ui.View()
     options = [
-        discord.SelectOption(label="Standard",value='Standard'),
-        discord.SelectOption(label="Classic",value='Classic')
+        discord.SelectOption(label="System 1",value="System 1"),
+        discord.SelectOption(label="System 2",value="System 2"),
+        discord.SelectOption(label="System 3",value="System 3"),
     ]
     menu=discord.ui.Select(placeholder='Mechanics Menu',options=options,custom_id='MechanicMenu')
     view.add_item(menu)
@@ -1429,23 +1430,25 @@ async def gameSystem(interaction:discord.Interaction):
             view.stop()
             embed = discord.Embed(title=f'Game System | {interaction.user.name}',color=discord.Color.from_str('#ffdd70'))
             embed.description = f"{menu.values[0]} has been set as current server's ruleset"
-            if menu.values[0]=='Standard':
-                db['server_db'][interaction.guild.id]['ruleSet'] = "Standard"
-            else:
-                db['server_db'][interaction.guild.id]['ruleSet'] = "Classic"
+            db['server_db'][interaction.guild.id]['ruleSet'] = menu.values[0]
             await sub_inter.message.edit(embed=embed,view=None)
     menu.callback= internal_check
     embed = discord.Embed(title=f'Game System | {interaction.user.name}',color=discord.Color.from_str('#ffdd70'))
     embed.description = f"""
 Game system selectors allows you to choose which rules to use while rolling the dice
 The following systems are currently supported by the bot:
-• Standard
-• Classic
+• System 1
+• System 2
+• System 3
 ~~**⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃⁃**~~
-‣ **__Standard:__**
->   This system will use the The Dark Heresy 2nd Edition rules to roll the dice.
-‣ **__Classic:__**
->   This system will use the most popular system to decide how the dices are rolled.
+‣**System 1:**
+> Rogue Trader/Deathwatch
+
+**System 2:**
+> War/Black Crusade
+
+**System 3:**
+> Dark Heresy 2nd Edition
 `Current rule-set is: {db['server_db'][interaction.guild.id]['ruleSet']}`
 Press `rules` to see how the the rules used in the bot
 """
@@ -1454,7 +1457,21 @@ Press `rules` to see how the the rules used in the bot
          if sub_inter.user.id == interaction.user.id:
             view.stop()
             embed = discord.Embed(title=f'Game System | {interaction.user.name}',color=discord.Color.from_str('#ffdd70'))
-            embed.description = f"Soon™️"
+            embed.description = f"""**System 1: Rogue Trader/Deathwatch**
+- Oldest system.
+- Gains DoS/F for every 10 points a characteristic was exceeded/failed, meaning you can pass/fail a test with 0 DoS/F (if I understand it correctly.)
+
+**System 2: Only War/Black Crusade**
+- Newer system (but not the newest)
+- Simplest
+- Passing/failing the test grants 1 DoS/F. For every 10 points more the test is passed/failed, you gain another DoS/F.
+- Always has at least 1 DoS or DoF.
+
+**System 3: Dark Heresy 2nd Edition**
+- Newest System
+- Like System 2, passing/failing grants 1 Dos/F. However, additional DoS/F is calculated differently.
+- Additional DoS are gained equal to the 10s digit of the target value minus the 10s digit of the roll. (TARGET VALUE - ROLL)
+- Additional DoF are gained equal to the 10s digit of the roll minus the 10s digit of the target value. (ROLL - TARGET VALUE)"""
             await sub_inter.message.edit(embed=embed,view=None)
     rules.callback=button_check
     view.add_item(rules)
@@ -1792,6 +1809,17 @@ class intRollView(ui.View):
 
 Rollgroup = app_commands.Group(name="roll", description="Roll the dice for whatever reason you want")
 
+def get_degree_of_task(target,rolled,system):
+    if rolled>target:
+        target,rolled=rolled,target
+    if system=="System 1":
+        return (target-rolled)//10
+    elif system=="System 2":
+        return 1+(target-rolled)//10
+    elif system=="System 3":
+        return 1+(target//10-rolled//10)
+    return 0
+
 @app_commands.command(name='char',description="Roll a d100 with (or without) your character's modifiers")
 @app_commands.describe(syntax='Format: {shorthand of characteristics/ a base value} {extra modifiers}')
 async def roll(interaction:discord.Interaction, syntax:str):
@@ -1849,52 +1877,28 @@ async def roll(interaction:discord.Interaction, syntax:str):
         em = -60
     acc = base+em
     rolled = random.randint(1,100)
-    if db['server_db'][interaction.guild.id]['ruleSet']=='Standard':
-        if rolled <= acc :
-            emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(0,255,111))
-            emb.add_field(name=base_name,value=base)
-            emb.add_field(name='Additional Modifier(s):',value=em)
-            emb.add_field(name='Target Number:',value=acc)
-            if int(acc/10)-int(rolled/10)>0:
-                emb.add_field(name='Degree of Success:', value=1+int(acc/10)-int(rolled/10)+unnat_base)
-            else:
-                emb.add_field(name='Degree of Success:', value=1+unnat_base)
-            emb.add_field(name='Rolled:',value=rolled)
-            await interaction.response.send_message(embed=emb)
+    if rolled <= acc :
+        emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(0,255,111))
+        emb.add_field(name=base_name,value=base)
+        emb.add_field(name='Additional Modifier(s):',value=em)
+        emb.add_field(name='Target Number:',value=acc)
+        if int(acc/10)-int(rolled/10)>0:
+            emb.add_field(name='Degree of Success:', value=get_degree_of_task(acc,rolled,db['server_db'][interaction.guild.id]['ruleSet'])+unnat_base)
         else:
-            emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(255,25,25))
-            emb.add_field(name=base_name,value=base)
-            emb.add_field(name='Additional Modifier(s):',value=em)
-            emb.add_field(name='Target Number:',value=acc)
-            if int(acc/10)-int(rolled/10)<0:
-                emb.add_field(name='Degree of Failure:', value=1+abs(int(acc/10)-int(rolled/10)))
-            else:
-                emb.add_field(name='Degree of Failure:', value='1')
-            emb.add_field(name='Rolled:',value=rolled)
-            await interaction.response.send_message(embed=emb)
+            emb.add_field(name='Degree of Success:', value=get_degree_of_task(acc,rolled,db['server_db'][interaction.guild.id]['ruleSet'])+unnat_base)
+        emb.add_field(name='Rolled:',value=rolled)
+        await interaction.response.send_message(embed=emb)
     else:
-        if rolled <= acc :
-            emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(0,255,111))
-            emb.add_field(name=base_name,value=base)
-            emb.add_field(name='Additional Modifier(s):',value=em)
-            emb.add_field(name='Target Number:',value=acc)
-            if int(acc/10)-int(rolled/10)>0:
-                emb.add_field(name='Degree of Success:', value=int(acc/10)-int(rolled/10)+unnat_base)
-            else:
-                emb.add_field(name='Degree of Success:', value=unnat_base)
-            emb.add_field(name='Rolled:',value=rolled)
-            await interaction.response.send_message(embed=emb)
+        emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(255,25,25))
+        emb.add_field(name=base_name,value=base)
+        emb.add_field(name='Additional Modifier(s):',value=em)
+        emb.add_field(name='Target Number:',value=acc)
+        if int(acc/10)-int(rolled/10)<0:
+            emb.add_field(name='Degree of Failure:', value=get_degree_of_task(acc,rolled,db['server_db'][interaction.guild.id]['ruleSet']))
         else:
-            emb = discord.Embed(title=f"Rolling | {emb_title} | {base_title}: {base_full}",color=discord.Color.from_rgb(255,25,25))
-            emb.add_field(name=base_name,value=base)
-            emb.add_field(name='Additional Modifier(s):',value=em)
-            emb.add_field(name='Target Number:',value=acc)
-            if int(acc/10)-int(rolled/10)<0:
-                emb.add_field(name='Degree of Failure:', value=abs(int(acc/10)-int(rolled/10)))
-            else:
-                emb.add_field(name='Degree of Failure:', value='0')
-            emb.add_field(name='Rolled:',value=rolled)
-            await interaction.response.send_message(embed=emb)
+            emb.add_field(name='Degree of Failure:', value=get_degree_of_task(acc,rolled,db['server_db'][interaction.guild.id]['ruleSet']))
+        emb.add_field(name='Rolled:',value=rolled)
+        await interaction.response.send_message(embed=emb)
 
 
 @app_commands.command(name='dmg', description="Roll a d10 with(out) modifiers for damage")
@@ -2009,12 +2013,7 @@ async def psyc(interaction:discord.Interaction, syntax:str):
         emb.add_field(name=base_name,value=base)
         emb.add_field(name='Additional Modifier(s):',value=em)
         emb.add_field(name='Target Number:',value=acc)
-        if int(acc/10)-int(rolled/10)>0:
-            dos=int(acc/10)-int(rolled/10)
-        else:
-            dos=1
-        
-        emb.add_field(name='Degree of Success:',value=dos)
+        emb.add_field(name='Degree of Success:',value=get_degree_of_task(acc,rolled,db['server_db'][interaction.guild.id]['ruleSet']))
         emb.add_field(name='Rolled:',value=rolled)
         if str(rolled)==str(rolled)[::-1]:
             reroll = random.randint(1,100)
@@ -2035,15 +2034,11 @@ async def psyc(interaction:discord.Interaction, syntax:str):
         emb.add_field(name=base_name,value=base)
         emb.add_field(name='Additional Modifier(s):',value=em)
         emb.add_field(name='Target Number:',value=acc)
-        if int(acc/10)-int(rolled/10)<0:
-            dof=abs(int(acc/10)-int(rolled/10))
-        else:
-            dof =0
-        emb.add_field(name='Degree of Failure:',value=dof)
+        emb.add_field(name='Degree of Failure:',value=get_degree_of_task(acc,rolled,db['server_db'][interaction.guild.id]['ruleSet']))
         emb.add_field(name='Rolled:',value=rolled)
         if str(rolled)==str(rolled)[::-1] and str(rolled)>1:
             reroll = random.randint(1,100)
-            tot = reroll+dof*10
+            tot = reroll+get_degree_of_task(acc,rolled,db['server_db'][interaction.guild.id]['ruleSet'])*10
             if reroll>75:
                 dubroll = 75
             else:
@@ -2427,12 +2422,6 @@ async def help(inter:discord.Interaction, command:str=None):
         if i.options:
             l[i.name]=[j.name for j in i.options]
     print(l)
-        
-    
-    
-    
-
-        
 
 token=config['token']
 

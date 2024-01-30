@@ -1,7 +1,7 @@
 sec.py
 backup*
 *root*
-config copy.json
+config_copy.json
 private.py
 Procfile
 build
