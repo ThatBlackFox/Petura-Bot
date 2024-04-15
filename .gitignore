@@ -9,3 +9,4 @@ dist
 app.ico
 *.spec
 ting.py
+*test*

@@ -942,7 +942,7 @@ async def edit(interaction: discord.Interaction):
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -981,7 +981,7 @@ async def image(interaction: discord.Interaction, attachment:discord.Attachment)
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1021,7 +1021,7 @@ async def view(interaction: discord.Interaction, user:discord.User):
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1058,7 +1058,8 @@ async def set_(interaction:discord.Interaction):
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            # do visib == 2 make them private again
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1099,7 +1100,7 @@ async def visib(interaction:discord.Interaction):
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1135,7 +1136,7 @@ async def delete(interaction:discord.Interaction):
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1215,7 +1216,7 @@ async def adminEdit(interaction:discord.Interaction,user:discord.User):
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1254,7 +1255,7 @@ async def adminDelete(interaction:discord.Interaction,user:discord.User):
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1302,7 +1303,7 @@ async def adminImage(interaction: discord.Interaction, member:discord.Member,att
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1525,7 +1526,7 @@ async def gmEdit(interaction:discord.Interaction,user:discord.User):
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1565,7 +1566,7 @@ async def gmExpSet(interaction:discord.Interaction,user:discord.User,amount:int)
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1605,7 +1606,7 @@ async def gmExpAdd(interaction:discord.Interaction,user:discord.User,amount:int)
         view=discord.ui.View()
         roles = [role.id for role in interaction.user.roles]
         for char in range(len(char_list)):
-            if char_list[char]['visib'] == 2:
+            if char_list[char]['visib'] != 2:
                 if interaction.user.guild_permissions.administrator:
                     pass
                 elif char_list[char]['owner'] == interaction.user.id:
@@ -1722,7 +1723,7 @@ class intRollView(ui.View):
             return
         if sub_inter.user.id in db['user_db']:
             char = db['user_db'][sub_inter.user.id]['char_list'][0].copy()
-            # if char['visib'] == 2:
+            # if char['visib'] != 2:
             #     await sub_inter.response.send_message('Character sheet visibility is `Private`, Change the visibility of your character sheet using `/char visibility` or use a different character using `/char set`',ephemeral=True)
             #     return
             # elif char['visib'] == 1:
