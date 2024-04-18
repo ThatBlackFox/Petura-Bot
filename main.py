@@ -9,6 +9,7 @@ import tabulate
 import random
 import pyrebase
 import json
+import sqlite3
 
 try:
     with open('config_copy.json','r') as f:
@@ -32,11 +33,12 @@ cache = set()
 
 @tasks.loop(seconds = 3) # repeat after every 10 seconds
 async def autosave():
-    with open('root.json','wb') as f:
-        pickle.dump(db,f)
-        if config['isFirebase']:
-            time.sleep(7)
-            storage.child('root.json').put('root.json')
+    c.execute("UPDATE DATA SET dd = ?",(json.dumps(db),))
+    # with open('root.json','wb') as f:
+    #     pickle.dump(db,f)
+    #     if config['isFirebase']:
+    #         time.sleep(7)
+    #         storage.child('root.json').put('root.json')
 
 #more data handling here
 
@@ -2449,21 +2451,33 @@ if config['isFirebase']:
             raise e
 else:
     try:
-        with open('root.json','rb') as f:
-            db = pickle.load(f)
+        conn = sqlite3.connect("root.db")
+        c = conn.cursor()
+        c.execute("SELECT * FROM data WHERE id = 1")
+        data = c.fetchone()[0]
+        if not data:
+            raise EOFError("EMPTY SQL DB")
+        # with open('root.json','rb') as f:
+        #     db = pickle.load(f)
+        db = json.loads(data)
     except Exception as e:
         if isinstance(e,EOFError):
-            with open('root.json', 'wb') as f:
-                db = {'user_db':{},'server_db':{},'int_ids':{}}
-                pickle.dump(db,f)
+            conn = sqlite3.connect("root.db")
+            c = conn.cursor()
+            c.execute("CREATE TABLE IF NOT EXISTS data (id int, dd text)")
+            db = {'user_db':{},'server_db':{},'int_ids':{}}
+            dbs = json.dumps(db)
+            c.execute("INSERT INTO data (id,dd) VALUES (?,?)",(1,dbs))
+            conn.commit()
+            # with open('root.json', 'wb') as f:
+            #     db = {'user_db':{},'server_db':{},'int_ids':{}}
+            #     pickle.dump(db,f)
             print("Warning: Empty DB file found! data has been reset.")
-        elif isinstance(e,FileNotFoundError):
-            with open('root.json', 'wb') as f:
-                db = {'user_db':{},'server_db':{},'int_ids':{}}
-                pickle.dump(db,f)
-            print("Warning: DB file not found new created!")
+        # elif isinstance(e,FileNotFoundError):
+        #     with open('root.json', 'wb') as f:
+        #         db = {'user_db':{},'server_db':{},'int_ids':{}}
+        #         pickle.dump(db,f)
+        #     print("Warning: DB file not found new created!")
         else:
             raise e
-
 aclient.run(token)
-#test.
